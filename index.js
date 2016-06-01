@@ -2,7 +2,7 @@
 const Ajv = require('ajv'),
       restify = require('restify-errors');
 
-const defaultErrorTransformer = errors => {
+const defaultErrorTransformer = (input, errors) => {
   let result = new restify.BadRequestError('Validation error');
   result.errors = errors;
   return result;
@@ -50,7 +50,7 @@ module.exports = function(options) {
 
     let valid = validate(dataToValidate);
     if (!valid) {
-      return errorResponder(errorTransformer(validate.errors), req, res, next);
+      return errorResponder(errorTransformer(dataToValidate, validate.errors), req, res, next);
     }
 
     return next();
