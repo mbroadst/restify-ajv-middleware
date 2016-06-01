@@ -1,110 +1,48 @@
-# restify-joi-middleware
-Another [joi](https://github.com/hapijs/joi) validation middleware for restify. Inspired by [restify-joi-validator](https://github.com/markotom/restify-joi-validator)
+# restify-ajv-middleware
+[![Build Status](https://travis-ci.org/mbroadst/restify-ajv-middleware.svg?branch=master)](https://travis-ci.org/mbroadst/restify-ajv-middleware)
+[![Test Coverage](https://codeclimate.com/github/mbroadst/restify-ajv-middleware/badges/coverage.svg)](https://codeclimate.com/github/mbroadst/restify-ajv-middleware/coverage)
 
-[![Build Status](https://travis-ci.org/maxnachlinger/restify-joi-middleware.svg?branch=master)](https://travis-ci.org/maxnachlinger/restify-joi-middleware)
+A [json-schema](json-schema.org) validation middleware for restify using [ajv](https://github.com/epoberezkin/ajv). Inspired by [restify-joi-middleware](https://github.com/maxnachlinger/restify-joi-middleware)
 
-[![NPM](https://nodei.co/npm/restify-joi-middleware.png)](https://nodei.co/npm/restify-joi-middleware/)
-
-### Installation:
+### Installation
 ```
-npm install restify-joi-middleware --save
+npm install restify-ajv-middleware --save
 ```
 
-### Note:
-Version ``1.0.0`` is for Node versions ``>4.0.0``. If you are using Node ``0.10 - 0.12``, please use version ``0.0.9``.
-
-### Usage:
-You can also have a look at the [example](example/).
+### Usage
 ```javascript
-const Joi = require('joi')
 const restify = require('restify')
-const validator = require('restify-joi-middleware')
-
+const validator = require('restify-ajv-middleware')
 const server = restify.createServer()
 
-// you can pass along all the joi options here
-server.use(validator())
-
-// additional middleware etc
+server.use(validator(/* options */))
 
 server.get({
   path: '/:id',
   validation: {
     params: {
-      id: Joi.number().min(0).required()
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: [ 'id' ],
+      additionalProperties: false
     }
   }
-}, (req, res, next) => {
-  res.send(200, {id: req.params.id})
-  next()
-})
-
-server.post({
-  path: '/',
-  validation: {
-    body: {
-      name: Joi.string().required()
-    }
-  }
-}, (req, res, next) => {
-  res.send(201, {id: 1, name: req.body.name})
-  next()
-})
-
-server.put({
-  path: '/:id',
-  // Joi.object().keys({}) schemas work too
-  validation: Joi.object().keys({
-    params: {
-      id: Joi.number().min(0).required()
-    },
-    body: {
-      id: Joi.number().min(0).required(),
-      name: Joi.string().required()
-    }
-  }).assert('params.id', Joi.ref('body.id'))
-}, (req, res, next) => {
-  res.send(200, {id: 1, name: req.body.name})
-  next()
+}, (req, res) => {
+  return res.send(200, { id: req.params.id })
 });
 ```
 
-### Quick Example
-Given the server above:
-```sh
-curl 'http://localhost:8081/'
-# result
-{
-   "code":"BadRequestError",
-   "message":"",
-   "data":[
-      {
-         "message":"\"id\" must be a number",
-         "path":"params.id",
-         "type":"number.base",
-         "context":{
-            "key":"id"
-         }
-      }
-   ]
-}
-```
-
-### Options:
-If you don't like how errors are returned or transformed from Joi errors to restify errors, you can change that. For example:
+### Options
+- _keysToValidate_: override the default keys to validate against
 ```javascript
 server.use(validator({
-  convert: true,
-  allowUnknown: true,
-  abortEarly: false
-  // .. all additional joi options
-}, {
   // changes the request keys validated
   keysToValidate: ['params', 'body', 'query', 'user', 'headers', 'trailers'],
-  
-  // changes how joi errors are transformed to be returned
-  errorTransformer: (validationInput, joiError) => new restifyErrors.BadRequestError(joiError.message),
-  
+});
+```
+- _errorResponder_: a function in the form `(transformedErr, req, res, next)` used to modify the default response strategy after failed validation.
+```javascript
+server.use(validator({
   // changes how errors are returned
   errorResponder: (transformedErr, req, res, next) => {
     res.send(400, transformedErr)
@@ -112,3 +50,11 @@ server.use(validator({
   }
 });
 ```
+- _errorTransformer_: a function in the form `(validationInput, errors)`, used to transform the error generated after failed validation
+```javascript
+server.use(validator({
+  // changes how json-schema errors are transformed
+  errorTransformer: (validationInput, errors) => new restifyErrors.BadRequestError('Something else'),
+});
+```
+- _ajv_: options passed to the internal ajv instance. See [options](https://github.com/epoberezkin/ajv#options) for more info.

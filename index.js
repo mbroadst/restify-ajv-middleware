@@ -1,11 +1,11 @@
 'use strict';
-const errors = require('restify-errors');
-const Joi = require('joi');
+const Ajv = require('ajv'),
+      restify = require('restify-errors');
 
-const defaultErrorTransformer = (validationInput, joiError) => {
-  var retError = new errors.BadRequestError();
-  retError.body.data = joiError.details;
-  return retError;
+const defaultErrorTransformer = errors => {
+  let result = new restify.BadRequestError('Validation error');
+  result.errors = errors;
+  return result;
 };
 
 const defaultErrorResponder =  (transformedErr, req, res, next) => {
@@ -13,59 +13,46 @@ const defaultErrorResponder =  (transformedErr, req, res, next) => {
 };
 
 const defaultKeysToValidate = ['params', 'body', 'query', 'user', 'headers', 'trailers'];
-
-module.exports = function (joiOptions, options) {
-  joiOptions = joiOptions || {
-      convert: true,
-      allowUnknown: true,
-      abortEarly: false
-    };
-
+module.exports = function(options) {
   options = options || {};
-  options.errorTransformer = options.errorTransformer || defaultErrorTransformer;
-  options.errorResponder = options.errorResponder || defaultErrorResponder;
-  options.keysToValidate = options.keysToValidate || defaultKeysToValidate;
+  let ajvOptions = options.ajv || {
+    v5: true,
+    allErrors: true,
+    useDefaults: true,
+    coerceTypes: true
+  };
 
+  let errorTransformer = options.errorTransformer || defaultErrorTransformer;
+  let errorResponder = options.errorResponder || defaultErrorResponder;
+  let keysToValidate = options.keysToValidate || defaultKeysToValidate;
+
+  let ajv = new Ajv(ajvOptions);
   return function restifyJoiMiddleware(req, res, next) {
-    const validation = req.route.validation;
-
-    if (!validation) {
+    if (!req.route.hasOwnProperty('validation')) {
       return setImmediate(next);
     }
 
-    const toValidate = options.keysToValidate.reduce((accum, key) => {
-      let value = req[key];
-
-      if (!value) {
-        // e.g. if the allowUnknown option is not set, and there's no value for body, then don't add body: {} to our
-        // object to validate
-        if (!joiOptions.allowUnknown) {
-          return accum;
+    let dataToValidate = keysToValidate
+      .reduce((data, key) => {
+        if (req.hasOwnProperty(key) /* && !ajvOptions.allowUnknown */) {
+          data[key] = req[key] || {};
         }
-        value = {};
-      }
 
-      accum[key] = value;
-      return accum;
-    }, {});
+        return data;
+      }, {});
 
-    const result = Joi.validate(toValidate, validation, joiOptions);
-
-    if (result.error) {
-      return options.errorResponder(
-        options.errorTransformer(toValidate, result.error),
-        req, res, next
-      );
-    }
-
-    // write defaults back to request
-    options.keysToValidate.forEach(key => {
-      if (!result.value[key] || !req[key]) {
-        return;
-      }
-      req[key] = result.value[key];
+    let validation = req.route.validation;
+    let validate = ajv.compile({
+      type: 'object',
+      properties: validation,
+      required: Object.keys(validation)
     });
 
-    next();
+    let valid = validate(dataToValidate);
+    if (!valid) {
+      return errorResponder(errorTransformer(validate.errors), req, res, next);
+    }
+
+    return next();
   };
 };
