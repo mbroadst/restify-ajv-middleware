@@ -1,4 +1,15 @@
-sudo: false
 language: node_js
 node_js:
-  - 4.1
+  - '4'
+  - '6'
+
+sudo: false
+
+before_install:
+  - npm install -g codeclimate-test-reporter
+
+script:
+  - make coverage
+
+after_script:
+  - codeclimate-test-reporter < coverage/lcov.info
