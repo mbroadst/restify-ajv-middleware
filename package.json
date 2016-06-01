@@ -1,6 +1,6 @@
 {
   "name": "restify-ajv-middleware",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "json-schema middleware for restify using ajv for validation.",
   "main": "index.js",
   "scripts": {
