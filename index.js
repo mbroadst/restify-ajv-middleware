@@ -22,12 +22,15 @@ module.exports = function(options) {
     coerceTypes: true
   };
 
+  let ajvTransformer = options.ajvTransformer;
   let errorTransformer = options.errorTransformer || defaultErrorTransformer;
   let errorResponder = options.errorResponder || defaultErrorResponder;
   let keysToValidate = options.keysToValidate || defaultKeysToValidate;
 
   let ajv = new Ajv(ajvOptions);
-  return function restifyJoiMiddleware(req, res, next) {
+  if (!!ajvTransformer) ajvTransformer(ajv);
+
+  return function RestifyAjvMiddleware(req, res, next) {
     if (!req.route.hasOwnProperty('validation')) {
       return setImmediate(next);
     }
